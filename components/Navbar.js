@@ -51,10 +51,10 @@ export default function Navbar() {
 
         {/* Desktop Navigation */}
         <div className="hidden md:flex items-center space-x-8">
-          <Link href="#features" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Features</Link>
-          <Link href="#templates" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Templates</Link>
-          <Link href="#pricing" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Pricing</Link>
-          <Link href="#docs" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Docs</Link>
+          <Link href="/features" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Features</Link>
+          <Link href="/templates" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Templates</Link>
+          <Link href="/pricing" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Pricing</Link>
+          <Link href="/docs" className="text-gray-600 hover:text-primary-600 font-medium transition-colors">Docs</Link>
         </div>
 
         {/* Right Section: Profile & CTA */}
@@ -62,13 +62,17 @@ export default function Navbar() {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="p-1 rounded-full hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 transform transition duration-300 hover:scale-110 cursor-pointer"
               aria-expanded={dropdownOpen}
               aria-haspopup="true"
             >
-              <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              {user?.avatar ? (
+                <img src={user.avatar} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary-400 to-indigo-500 flex items-center justify-center text-white text-sm font-bold">
+                  {user?.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+              )}
             </button>
             {/* Dropdown Menu */}
             {dropdownOpen && (

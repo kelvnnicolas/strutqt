@@ -1,4 +1,5 @@
 import React from 'react';
+import { useRouter } from 'next/router';
 
 const plans = [
   {
@@ -39,6 +40,8 @@ const plans = [
 ];
 
 export default function Pricing() {
+  const router = useRouter();
+
   return (
     <section id="pricing" className="py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
@@ -83,11 +86,13 @@ export default function Pricing() {
                 ))}
               </ul>
 
-              <button className={`w-full py-3 px-4 rounded-lg font-semibold text-sm transition-all shadow-sm ${plan.popular
+              <button 
+                onClick={() => router.push(`/checkout?plan=${plan.name.toLowerCase()}`)}
+                className={`w-full py-3 px-4 rounded-lg font-semibold text-sm transition-all shadow-sm ${plan.popular
                 ? 'bg-primary-600 hover:bg-primary-700 text-white hover:shadow-md'
                 : 'bg-white/80 hover:bg-gray-50 text-gray-900 border border-gray-200'
                 }`}>
-                {plan.cta}
+                Get Started
               </button>
             </div>
           ))}

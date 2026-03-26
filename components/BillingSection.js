@@ -13,7 +13,8 @@ export default function BillingSection() {
             <p className="text-sm text-gray-500 mt-1">Unlimited Quizzes • Up to 10k Responses/mo</p>
           </div>
           <div className="mt-4 sm:mt-0">
-            <button className="px-4 py-2 border border-primary-600 shadow-sm text-sm font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 transition hover:scale-105">
+            <button className="px-4 py-2 border border-primary-600 shadow-sm text-sm font-medium rounded-md text-primary-600 bg-white hover:bg-primary-50 transition hover:scale-105"
+              onClick={() => router.push('/pricing')}>
               Upgrade Plan
             </button>
           </div>

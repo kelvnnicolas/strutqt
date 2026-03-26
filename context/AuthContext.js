@@ -1,12 +1,13 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useState, useEffect, useContext } from 'react';
+import api, { setAuthToken } from '../utils/api';
 import { useRouter } from 'next/router';
 
 const AuthContext = createContext({
   user: null,
   loading: true,
-  login: () => {},
-  signup: () => {},
-  logout: () => {},
+  login: () => { },
+  signup: () => { },
+  logout: () => { },
 });
 
 export const AuthProvider = ({ children }) => {
@@ -15,72 +16,58 @@ export const AuthProvider = ({ children }) => {
   const router = useRouter();
 
   useEffect(() => {
-    // Rehydrate session from localStorage
-    const checkAuth = () => {
+    const initAuth = async () => {
       try {
-        const storedToken = localStorage.getItem('struqt_auth_token');
-        const storedUser = localStorage.getItem('struqt_user');
+        // We attempt to fetch /api/auth/me to see if user is already logged in securely
+        // We aren't checking localStorage for tokens in production, but let's see if 
+        // the API answers. If we have an accessToken from a previous run, interceptor handles it, 
+        // but typically just calling /me triggers auto-refresh if there's an httpOnly cookie.
         
-        if (storedToken && storedUser) {
-          setUser(JSON.parse(storedUser));
-        } else {
-          // ensure clean state if token is missing
-          localStorage.removeItem('struqt_auth_token');
-          localStorage.removeItem('struqt_user');
+        const { data } = await api.get('/auth/me');
+        if (data?.user) {
+          setUser(data.user);
         }
       } catch (error) {
-        console.error('Failed to parse user session:', error);
+        setUser(null);
       } finally {
         setLoading(false);
       }
     };
-
-    checkAuth();
+    initAuth();
   }, []);
 
   const login = async (email, password) => {
-    // Mock API call
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (email && password) {
-          const mockUser = { id: 1, name: email.split('@')[0], email };
-          const mockToken = 'mock_jwt_token_12345';
-          
-          setUser(mockUser);
-          localStorage.setItem('struqt_auth_token', mockToken);
-          localStorage.setItem('struqt_user', JSON.stringify(mockUser));
-          resolve(mockUser);
-        } else {
-          reject(new Error('Invalid credentials'));
-        }
-      }, 500);
-    });
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      setUser(data.user);
+      setAuthToken(data.accessToken);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.error || 'Login failed' };
+    }
   };
 
   const signup = async (name, email, password) => {
-    // Mock API call
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (name && email && password) {
-          const mockUser = { id: 2, name, email };
-          const mockToken = 'mock_jwt_token_67890';
-          
-          setUser(mockUser);
-          localStorage.setItem('struqt_auth_token', mockToken);
-          localStorage.setItem('struqt_user', JSON.stringify(mockUser));
-          resolve(mockUser);
-        } else {
-          reject(new Error('Missing required fields'));
-        }
-      }, 500);
-    });
+    try {
+      const { data } = await api.post('/auth/signup', { name, email, password });
+      setUser(data.user);
+      setAuthToken(data.accessToken);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.response?.data?.error || 'Signup failed' };
+    }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('struqt_auth_token');
-    localStorage.removeItem('struqt_user');
-    router.push('/');
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setUser(null);
+      setAuthToken(null);
+      router.push('/');
+    }
   };
 
   return (
