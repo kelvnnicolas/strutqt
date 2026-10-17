@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import AuthInput from './AuthInput';
 
@@ -16,16 +16,16 @@ export default function ProfileForm() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState({ text: '', type: '' });
 
-  // Load initial data
-  useEffect(() => {
-    if (user) {
-      setFormData({
-        fullName: user.name || '',
-        companyName: user.company || '',
-        email: user.email || '',
-      });
-    }
-  }, [user]);
+  // Load initial data: sync the form when the user arrives or changes
+  const [syncedUser, setSyncedUser] = useState(null);
+  if (user && user !== syncedUser) {
+    setSyncedUser(user);
+    setFormData({
+      fullName: user.name || '',
+      companyName: user.company || '',
+      email: user.email || '',
+    });
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;

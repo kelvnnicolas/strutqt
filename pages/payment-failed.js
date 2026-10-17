@@ -23,7 +23,7 @@ export default function PaymentFailed() {
             
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Failed</h1>
             <p className="text-gray-500 mb-8">
-              Unfortunately, we couldn't process your payment. Please check your payment details and try again, or use a different payment method.
+              Unfortunately, we couldn&apos;t process your payment. Please check your payment details and try again, or use a different payment method.
             </p>
             
             <div className="space-y-3">

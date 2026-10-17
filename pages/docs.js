@@ -20,7 +20,7 @@ export default function DocsPage() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Documentation Coming Soon</h1>
           <p className="text-gray-500">
-            We're currently writing comprehensive guides and API documentation to help you build the best quiz funnels.
+            We&apos;re currently writing comprehensive guides and API documentation to help you build the best quiz funnels.
           </p>
         </div>
       </main>

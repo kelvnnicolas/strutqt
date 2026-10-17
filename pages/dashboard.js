@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import ProtectedRoute from '../components/ProtectedRoute';
@@ -11,17 +11,12 @@ import CTAButtons from '../components/CTAButtons';
 export default function DashboardPage() {
   const { user } = useAuth();
   
-  // Mock data for the dashboard
-  const [quizzes, setQuizzes] = useState([]);
-  
-  useEffect(() => {
-    // Simulate loading data from an API
-    setQuizzes([
-      { id: 1, name: 'SaaS Onboarding Flow', views: 1250, leads: 450, conversion_rate: 36 },
-      { id: 2, name: 'Real Estate Buyer Quiz', views: 3400, leads: 820, conversion_rate: 24 },
-      { id: 3, name: 'Fitness Assessment', views: 890, leads: 120, conversion_rate: 13.5 },
-    ]);
-  }, []);
+  // Mock data for the dashboard (replaced by real queries in F-002)
+  const [quizzes] = useState([
+    { id: 1, name: 'SaaS Onboarding Flow', views: 1250, leads: 450, conversion_rate: 36 },
+    { id: 2, name: 'Real Estate Buyer Quiz', views: 3400, leads: 820, conversion_rate: 24 },
+    { id: 3, name: 'Fitness Assessment', views: 890, leads: 120, conversion_rate: 13.5 },
+  ]);
 
   return (
     <ProtectedRoute>
@@ -42,7 +37,7 @@ export default function DashboardPage() {
                   <h1 className="text-3xl font-bold text-gray-900 mb-1">
                     Performance Overview
                   </h1>
-                  <p className="text-gray-500 text-sm">Welcome back{user?.name ? `, ${user.name}` : ''}! Here's how your funnels are performing.</p>
+                  <p className="text-gray-500 text-sm">Welcome back{user?.name ? `, ${user.name}` : ''}! Here&apos;s how your funnels are performing.</p>
                 </div>
               </div>
 
