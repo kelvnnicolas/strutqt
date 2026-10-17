@@ -20,13 +20,19 @@ function clearRefreshTokenCookie(res) {
 export async function signup(req, res) {
   try {
     const { email, password, name } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
     const user = await authService.createUser(email, password, name);
+
     // Auto-login after signup
     const tokens = await authService.loginUser(email, password);
     setRefreshTokenCookie(res, tokens.refreshToken);
     return res.status(201).json({ user: tokens.user, accessToken: tokens.accessToken });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    return res.status(400).json({ error: error.message || 'Internal server error during signup' });
   }
 }
 

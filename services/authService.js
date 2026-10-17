@@ -3,16 +3,18 @@ import { hashPassword, verifyPassword } from '../utils/hash';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 
 export async function createUser(email, password, name) {
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) throw new Error('User already exists');
-  
-  const passwordHash = await hashPassword(password);
-  
-  const user = await prisma.user.create({
-    data: { email, passwordHash, name }
-  });
-  
-  return { id: user.id, email: user.email, name: user.name, avatar: user.avatar };
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) throw new Error('User already exists');
+    const passwordHash = await hashPassword(password);
+    const user = await prisma.user.create({
+      data: { email, passwordHash, name }
+    });
+    
+    return { id: user.id, email: user.email, name: user.name, avatar: user.avatar };
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function loginUser(email, password) {

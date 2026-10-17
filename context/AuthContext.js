@@ -43,7 +43,9 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(data.accessToken);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.error || 'Login failed' };
+      const status = error.response?.status || 500;
+      const message = error.response?.data?.error || 'Login failed';
+      throw { status, message };
     }
   };
 
@@ -54,7 +56,9 @@ export const AuthProvider = ({ children }) => {
       setAuthToken(data.accessToken);
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.response?.data?.error || 'Signup failed' };
+      const status = error.response?.status || 500;
+      const message = error.response?.data?.error || 'Signup failed';
+      throw { status, message };
     }
   };
 
