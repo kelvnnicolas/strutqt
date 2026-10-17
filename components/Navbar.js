@@ -101,10 +101,6 @@ export default function Navbar() {
               </div>
             )}
           </div>
-
-          <Link href="#signup" className="hidden sm:inline-flex bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-5 rounded-lg shadow-md hover:shadow-lg transform hover:-translate-y-0.5 transition-all duration-200">
-            Start Free
-          </Link>
         </div>
       </div>
     </nav>

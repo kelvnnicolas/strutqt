@@ -1,10 +1,12 @@
 import Head from 'next/head';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
+import ValueProposition from '../components/ValueProposition';
+import ProductPreview from '../components/ProductPreview';
 import Features from '../components/Features';
-import TemplatesCarousel from '../components/TemplatesCarousel';
 import SocialProof from '../components/SocialProof';
 import Pricing from '../components/Pricing';
+import FinalCTA from '../components/FinalCTA';
 import Footer from '../components/Footer';
 
 export default function Home() {
@@ -22,10 +24,14 @@ export default function Home() {
 
         <main className="flex-grow">
           <Hero />
-          <SocialProof />
+          <ValueProposition />
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 -mt-8 mb-20">
+            <ProductPreview />
+          </div>
           <Features />
-          <TemplatesCarousel />
+          <SocialProof />
           <Pricing />
+          <FinalCTA />
         </main>
 
         <Footer />
