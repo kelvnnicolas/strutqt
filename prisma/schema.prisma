@@ -38,7 +38,11 @@ model Workspace {
 
   owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   members       UserWorkspace[]
-  quizzes       Quiz[]
+  flows         Flow[]
+  submissions   Submission[]
+  leads         Lead[]
+  events        Event[]
+  integrations  Integration[]
   subscriptions Subscription[]
 }
 
@@ -51,92 +55,247 @@ model UserWorkspace {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
+  @@unique([userId, workspaceId])
   @@index([workspaceId])
 }
 
-model Quiz {
+// ---------------------------------------------------------------------------
+// Fluxos: o que o cliente configura. Uma versao publicada e imutavel; editar
+// um fluxo publicado cria uma nova versao (os dados coletados continuam
+// apontando para a versao com que foram coletados).
+// ---------------------------------------------------------------------------
+
+enum FlowStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum StepType {
+  QUESTION // pergunta com opcoes pontuadas
+  LEAD_FORM // captura de nome, e-mail e telefone
+  MESSAGE // texto informativo / encerramento
+}
+
+model Flow {
+  id                     String     @id @default(uuid()) @db.Uuid
+  workspaceId            String     @db.Uuid
+  name                   String
+  slug                   String     @unique // URL publica: /f/[slug]
+  status                 FlowStatus @default(DRAFT)
+  // Pontuacao minima (inclusive) para o lead ser considerado qualificado.
+  qualificationThreshold Int?
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
+  deletedAt              DateTime? // soft delete
+
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions    FlowVersion[]
+  submissions Submission[]
+  leads       Lead[]
+  events      Event[]
+
+  @@index([workspaceId, status])
+}
+
+model FlowVersion {
   id          String    @id @default(uuid()) @db.Uuid
-  workspaceId String    @db.Uuid
-  title       String
-  status      String    @default("draft")
+  flowId      String    @db.Uuid
+  version     Int
+  publishedAt DateTime? // null = rascunho editavel
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  deleteAt    DateTime? // Soft-delete support
 
-  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  questions Question[]
-  leads     Lead[]
-  events    AnalyticsEvent[]
+  flow        Flow         @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  steps       Step[]
+  submissions Submission[]
+  events      Event[]
 
-  @@index([workspaceId])
+  @@unique([flowId, version])
 }
 
-model Question {
-  id        String   @id @default(uuid()) @db.Uuid
-  quizId    String   @db.Uuid
-  type      String
-  content   String
-  position  Int?
-  createdAt DateTime @default(now())
+model Step {
+  id            String   @id @default(uuid()) @db.Uuid
+  flowVersionId String   @db.Uuid
+  // Identificador estavel do passo dentro do fluxo (ex.: "orcamento"); e o que
+  // as respostas e os eventos referenciam, nao o id da linha.
+  key           String
+  type          StepType
+  position      Int
+  // Conteudo do passo: enunciado, opcoes com pontuacao, campos do formulario.
+  config        Json
+  // Reservado para ramificacao ("so mostrar se ..."). Null na v1 (fluxo linear).
+  condition     Json?
 
-  quiz      Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  answers   Answer[]
-  responses Response[]
+  flowVersion FlowVersion @relation(fields: [flowVersionId], references: [id], onDelete: Cascade)
 
-  @@index([quizId])
+  @@unique([flowVersionId, key])
+  @@unique([flowVersionId, position])
 }
 
-model Answer {
-  id         String @id @default(uuid()) @db.Uuid
-  questionId String @db.Uuid
-  value      String
-  score      Int    @default(0)
+// ---------------------------------------------------------------------------
+// Execucao: o que o visitante fez. Estado derivado dos eventos.
+// ---------------------------------------------------------------------------
 
-  question  Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  responses Response[]
+enum SubmissionStatus {
+  IN_PROGRESS
+  COMPLETED
+  ABANDONED
+}
+
+enum Qualification {
+  QUALIFIED
+  UNQUALIFIED
+}
+
+model Submission {
+  id            String           @id @default(uuid()) @db.Uuid
+  workspaceId   String           @db.Uuid
+  flowId        String           @db.Uuid
+  flowVersionId String           @db.Uuid
+  // Identificador anonimo gerado no navegador do visitante.
+  visitorId     String
+  status        SubmissionStatus @default(IN_PROGRESS)
+  score         Int              @default(0)
+  // Respostas por chave de passo: { "orcamento": "acima-10k", ... }
+  answers       Json             @default("{}")
+  utmSource     String?
+  utmMedium     String?
+  utmCampaign   String?
+  startedAt     DateTime         @default(now())
+  completedAt   DateTime?
+
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow        Flow        @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flowVersion FlowVersion @relation(fields: [flowVersionId], references: [id])
+  lead        Lead?
+  events      Event[]
+
+  @@index([workspaceId, flowId, startedAt])
+  @@index([flowId, visitorId])
 }
 
 model Lead {
-  id        String   @id @default(uuid()) @db.Uuid
-  quizId    String   @db.Uuid
-  name      String?
-  email     String?
-  phone     String?
-  score     Int?
-  createdAt DateTime @default(now())
+  id            String        @id @default(uuid()) @db.Uuid
+  workspaceId   String        @db.Uuid
+  flowId        String        @db.Uuid
+  submissionId  String        @unique @db.Uuid
+  name          String?
+  email         String?
+  phone         String?
+  score         Int
+  qualification Qualification
+  createdAt     DateTime      @default(now())
 
-  quiz      Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
-  responses Response[]
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow       Flow       @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
-  @@index([quizId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, email])
 }
 
-model Response {
-  id         String   @id @default(uuid()) @db.Uuid
-  leadId     String   @db.Uuid
-  questionId String?  @db.Uuid
-  answerId   String?  @db.Uuid
-  createdAt  DateTime @default(now())
+// ---------------------------------------------------------------------------
+// Eventos: fonte da verdade para metricas e integracoes. Imutaveis; a mesma
+// acao enviada duas vezes (retentativa, duplo clique) gera um unico evento
+// gracas a idempotencyKey. Catalogo e envelope em docs/eventos.md.
+// ---------------------------------------------------------------------------
 
-  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  question Question? @relation(fields: [questionId], references: [id])
-  answer   Answer?   @relation(fields: [answerId], references: [id])
-
-  @@index([leadId])
+enum EventType {
+  FLOW_VIEWED
+  FLOW_STARTED
+  STEP_ANSWERED
+  FLOW_COMPLETED
+  LEAD_CAPTURED
+  LEAD_QUALIFIED
+  LEAD_DISQUALIFIED
 }
 
-model AnalyticsEvent {
-  id        String   @id @default(uuid()) @db.Uuid
-  quizId    String?  @db.Uuid
-  eventType String
-  metadata  Json?
-  createdAt DateTime @default(now())
+model Event {
+  id             String    @id @default(uuid()) @db.Uuid
+  workspaceId    String    @db.Uuid
+  flowId         String    @db.Uuid
+  flowVersionId  String?   @db.Uuid
+  submissionId   String?   @db.Uuid
+  type           EventType
+  // Fornecida por quem emite o evento; unica por workspace.
+  idempotencyKey String
+  // Quando aconteceu (cliente/servidor) e quando chegou ao sistema.
+  occurredAt     DateTime
+  receivedAt     DateTime  @default(now())
+  // Versao do formato do payload, para evoluir sem quebrar consumidores.
+  schemaVersion  Int       @default(1)
+  payload        Json      @default("{}")
+  // Preenchido quando os consumidores (metricas e integracoes) terminaram.
+  processedAt    DateTime?
 
-  quiz Quiz? @relation(fields: [quizId], references: [id])
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  flow        Flow         @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  flowVersion FlowVersion? @relation(fields: [flowVersionId], references: [id])
+  submission  Submission?  @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+  deliveries  Delivery[]
 
-  @@index([quizId])
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, flowId, type, occurredAt])
+  @@index([processedAt])
 }
+
+// ---------------------------------------------------------------------------
+// Integracoes: destinos configurados pelo cliente e o registro de cada entrega.
+// ---------------------------------------------------------------------------
+
+enum IntegrationType {
+  WEBHOOK
+}
+
+enum DeliveryStatus {
+  PENDING
+  SUCCEEDED
+  FAILED // tentou e vai tentar de novo em nextAttemptAt
+  DEAD // esgotou as tentativas
+}
+
+model Integration {
+  id              String          @id @default(uuid()) @db.Uuid
+  workspaceId     String          @db.Uuid
+  type            IntegrationType @default(WEBHOOK)
+  name            String
+  url             String
+  // Segredo de assinatura HMAC, guardado cifrado (nunca em texto puro).
+  secretEncrypted String
+  // Quais eventos disparam este destino.
+  eventTypes      EventType[]
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+
+  workspace  Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries Delivery[]
+
+  @@index([workspaceId, active])
+}
+
+model Delivery {
+  id             String         @id @default(uuid()) @db.Uuid
+  integrationId  String         @db.Uuid
+  eventId        String         @db.Uuid
+  status         DeliveryStatus @default(PENDING)
+  attempts       Int            @default(0)
+  nextAttemptAt  DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  createdAt      DateTime       @default(now())
+  deliveredAt    DateTime?
+
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  event       Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // Um evento chega a um destino uma vez; retentativas reaproveitam a linha.
+  @@unique([integrationId, eventId])
+  @@index([status, nextAttemptAt])
+}
+
+// ---------------------------------------------------------------------------
+// Planos (cobranca ainda nao implementada; ver F-004)
+// ---------------------------------------------------------------------------
 
 model Plan {
   id        String   @id @default(uuid()) @db.Uuid

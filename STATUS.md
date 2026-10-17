@@ -6,6 +6,7 @@
 **Última atualização:** 2026-10-17 · `main` com 3 commits, igual ao `origin/main` (`5ecbff4`); **20 arquivos com alterações locais ainda sem commit** (ver Estado atual)
 **Repositório:** <https://github.com/kelvnnicolas/strutqt> (**público**, último push 2026-03-26). Conferido em 2026-10-17 com `git fetch`: `main` local e `origin/main` idênticos, 0 commits de diferença, sem outras branches.
 **Produção:** nenhuma publicada que eu tenha verificado.
+**Conceito:** SaaS de automação de captação e qualificação de leads (fluxos configuráveis → eventos → métricas → integrações). Ver [`README.md`](README.md) e [`docs/eventos.md`](docs/eventos.md).
 **Stack:** Next.js 16.2 (Pages Router) · React 19 · Tailwind 4 · Prisma 7 (PostgreSQL + Accelerate) · JWT (access 15 min + refresh 7 dias em cookie httpOnly) · JavaScript, com `lib/prisma.ts` solto em TypeScript.
 
 ## Como manter este arquivo
@@ -29,17 +30,18 @@ Avaliação feita em 2026-10-17 por leitura do código e execução do ESLint. *
 | Autenticação (signup, login, refresh, logout, `/me`) | 🟡 | Controller → service → Prisma, bcryptjs, JWT, rotação do refresh token. Segredos JWT obrigatórios e sem log de senha (verificado em Node). **Fluxo completo contra o banco não executado.** Sem testes. |
 | Rotas protegidas | 🟡 | `middleware.js` só confere se o cookie `refreshToken` existe; não valida o token. `ProtectedRoute` no cliente complementa. |
 | Dashboard | ❌ | `pages/dashboard.js` usa lista fixa de 3 quizzes e métricas escritas à mão ("1,390"). |
-| Quizzes, perguntas, leads, analytics | ❌ | Modelos existem em `prisma/schema.prisma`; **não há nenhuma rota de API nem tela que os use**. É o núcleo do produto. |
-| Checkout, cobrança, planos | ❌ | `pages/checkout.js` (328 linhas), `billing`, `payment-*` são telas estáticas; nenhuma chamada a gateway. Modelos `Plan`/`Subscription` sem uso. |
-| Banco de dados | 🟡 | `schema.prisma` em PostgreSQL com 11 modelos. **Sem pasta `prisma/migrations`**. `dev.db` saiu do Git na branch (continua no histórico público; tabelas vazias, verificado). |
+| Fluxos, execução pública, eventos, leads, métricas | ❌ | Modelo definido (`Flow`, `FlowVersion`, `Step`, `Submission`, `Lead`, `Event`); **nenhuma rota de API nem tela o usa ainda**. É o núcleo do produto (Fase 1 do `nextmove.md`). |
+| Integrações (webhook) | ❌ | Modelos `Integration` e `Delivery` definidos; sem código. |
+| Checkout, cobrança, planos | ❌ | `pages/checkout.js`, `billing`, `payment-*` são telas estáticas; nenhuma chamada a gateway. |
+| Banco de dados | 🟡 | `schema.prisma` em PostgreSQL com 11 modelos. Migration baseline `20261017000000_init` gerada offline (14 tabelas, 7 enums), **nunca aplicada a um banco**. `dev.db` saiu do Git na branch (continua no histórico público; tabelas vazias, verificado). |
 | Variáveis de ambiente | ✅ | `.env` fora do Git; `.env.example` criado com as 4 variáveis. |
 | Lint | ✅ | `npm run lint`: 0 erros, 3 avisos (`<img>` em AvatarUpload e Navbar). Verificado em 2026-10-17. |
 | Build | ✅ | `npm run build` passa (21 rotas), 2026-10-17. |
-| Testes | ❌ | Nenhum, nem script `test` no `package.json`. |
+| Testes | 🟡 | Vitest: 20 testes passando (validação, JWT, controller de auth com service simulado). Sem testes de integração com banco. |
 | CI | ❌ | Sem `.github/`. |
 | Deploy | ❌ | Sem `.vercel`, sem workflow. |
-| README | ❌ | É o texto padrão do `create-next-app` (cita `pages/api/hello.js`, Geist). |
-| Docs para agentes | 🟡 | `AGENTS.md` / `CLAUDE.md` só trazem o aviso padrão do Next 16. Sem convenções do projeto. |
+| README | ✅ | Reescrito em 2026-10-17 para o conceito, com decisões da v1, setup com PostgreSQL e roadmap. Removi o link de "demo ao vivo" por não estar verificado. |
+| Docs para agentes | ✅ | `AGENTS.md` com as convenções (camadas, sem PII em log, `workspaceId`, eventos idempotentes). |
 
 ### Local × GitHub (2026-10-17)
 
@@ -77,7 +79,7 @@ Pendentes no [`nextmove.md`](nextmove.md): validação de entrada, `errorHandler
 
 ## Decisões registradas
 
-1. **Pages Router**, não App Router (estado atual do código). Mudar exige decisão explícita (D-001 no `nextmove.md`).
+1. **Pages Router**, não App Router, até o fim da Fase 1 (D-004 no `nextmove.md`).
 2. **Refresh token em cookie httpOnly + `sameSite: strict`, access token em memória** (via `setAuthToken`), com rotação a cada refresh. Mantido.
 
 ---
@@ -86,7 +88,12 @@ Pendentes no [`nextmove.md`](nextmove.md): validação de entrada, `errorHandler
 
 Mais recente primeiro. Uma linha por entrega; IDs referem-se ao `nextmove.md`.
 
-### 2026-10-17
+### 2026-10-17 (segunda rodada: conceito e roadmap)
+- **Validação e erros** (B-003, T-004, T-010; 6b320cf): `validators/auth.js` com Zod (e-mail normalizado, senha 8+ e no máximo 72 bytes), `AppError`/`handleError`, respostas `{ success, code, message, issues }`; conta sem senha não entra por login; corrida no cadastro tratada pelo índice único. Vitest com 20 testes; **mutação conferida** (afrouxar o mínimo da senha derruba o teste). Lint 0 erros e build ok. Não rodado contra banco.
+- **Modelo de dados do conceito** (`prisma/schema.prisma`): `Flow`/`FlowVersion`/`Step` (versionado, `condition` reservado), `Submission`, `Lead`, `Event` (idempotente por `(workspaceId, idempotencyKey)`), `Integration`, `Delivery`; substituem `Quiz`/`Question`/`Answer`/`Response`/`AnalyticsEvent`. Migration baseline gerada offline com `prisma migrate diff` e `prisma validate` ok; **não aplicada**.
+- **Documentação**: `README.md` reescrito, `docs/eventos.md` (envelope, catálogo, métricas, entrega), convenções no `AGENTS.md`, pacote renomeado para `strutqt`.
+
+### 2026-10-17 (primeira rodada)
 - **Primeiras implementações** (branch `chore/estrutura`, 6 commits, **sem push**): pasta renomeada para `strutqt` (igual ao GitHub); **B-001** signup não loga mais a senha nem o e-mail (c35c43a); **B-002** `utils/jwt.js` sem segredo padrão, falha com erro claro (c35c43a; verificado em Node: sem env lança erro, com env assina e o token de acesso não vale como refresh); **T-002** `dev.db` fora do Git e `*.db` ignorado (7639197); **T-003** `eslint@9` + `eslint-config-next@16.2.0`, 8 erros de lint corrigidos, 0 erros restantes (334a486, 09803f7); **T-005** `bcrypt` nativo e `utils/password.js` removidos; **T-006** `lib/prisma.ts` removido, fica `utils/prisma.js`; `.env.example` criado. Verificado: `npm run lint` (0 erros) e `npm run build`. **Não verificado:** login/signup contra o banco, `/api/health`. Os 3 avisos de lint (`<img>`) ficaram.
 - **Avaliação inicial e estrutura de acompanhamento**: criados `STATUS.md` e `nextmove.md` no formato do SaúdeConecta. Nenhum código alterado.
 
