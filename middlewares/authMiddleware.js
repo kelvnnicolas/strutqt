@@ -1,11 +1,12 @@
 import { verifyAccessToken } from '../utils/jwt';
+import { ErrorCodes, sendError } from '../utils/errorHandler';
 
 export function withAuth(handler) {
   return async (req, res) => {
     try {
       const authHeader = req.headers.authorization;
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Unauthorized: No token provided' });
+        return sendError(res, ErrorCodes.AUTH_UNAUTHORIZED);
       }
 
       const token = authHeader.split(' ')[1];
@@ -14,7 +15,7 @@ export function withAuth(handler) {
       
       return handler(req, res);
     } catch (error) {
-      return res.status(401).json({ error: 'Unauthorized: Invalid or expired access token' });
+      return sendError(res, ErrorCodes.AUTH_TOKEN_EXPIRED);
     }
   };
 }

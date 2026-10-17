@@ -15,6 +15,30 @@ export const ErrorCodes = {
 };
 
 /**
+ * Erro de dominio: o service lanca, o controller converte em resposta.
+ */
+export class AppError extends Error {
+  constructor(errorDef, details) {
+    super(errorDef.message);
+    this.name = 'AppError';
+    this.errorDef = errorDef;
+    this.details = details;
+  }
+}
+
+/**
+ * Converte qualquer erro lancado em resposta. Erros inesperados nao vazam a
+ * mensagem original e so registram o nome e a mensagem, nunca o corpo da requisicao.
+ */
+export function handleError(res, error, context) {
+  if (error instanceof AppError) {
+    return sendError(res, error.errorDef, undefined, error.details);
+  }
+  console.error(`[ERROR] ${context}:`, error?.name, error?.message);
+  return sendError(res, ErrorCodes.INTERNAL_ERROR);
+}
+
+/**
  * Send a structured error response.
  * @param {object} res - Next.js response object
  * @param {object} errorDef - One of the ErrorCodes entries
@@ -28,7 +52,10 @@ export function sendError(res, errorDef, customMessage, details) {
     message: customMessage || errorDef.message,
   };
 
-  if (process.env.NODE_ENV !== 'production' && details) {
+  // `issues` (validacao de campos) e seguro em producao; o resto so em dev.
+  if (details?.issues) {
+    body.issues = details.issues;
+  } else if (process.env.NODE_ENV !== 'production' && details) {
     body.details = details;
   }
 

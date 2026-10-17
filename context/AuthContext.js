@@ -44,7 +44,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       const status = error.response?.status || 500;
-      const message = error.response?.data?.error || 'Login failed';
+      const message = error.response?.data?.message || 'Login failed';
       throw { status, message };
     }
   };
@@ -57,7 +57,7 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (error) {
       const status = error.response?.status || 500;
-      const message = error.response?.data?.error || 'Signup failed';
+      const message = error.response?.data?.message || 'Signup failed';
       throw { status, message };
     }
   };

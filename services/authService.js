@@ -1,28 +1,30 @@
 import prisma from '../utils/prisma';
 import { hashPassword, verifyPassword } from '../utils/hash';
+import { AppError, ErrorCodes } from '../utils/errorHandler';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwt';
 
 export async function createUser(email, password, name) {
+  const existingUser = await prisma.user.findUnique({ where: { email } });
+  if (existingUser) throw new AppError(ErrorCodes.AUTH_USER_EXISTS);
+
+  const passwordHash = await hashPassword(password);
   try {
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) throw new Error('User already exists');
-    const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: { email, passwordHash, name }
-    });
-    
+    const user = await prisma.user.create({ data: { email, passwordHash, name } });
     return { id: user.id, email: user.email, name: user.name, avatar: user.avatar };
   } catch (error) {
+    // Duas requisicoes simultaneas passam na checagem acima; o indice unico decide.
+    if (error?.code === 'P2002') throw new AppError(ErrorCodes.AUTH_USER_EXISTS);
     throw error;
   }
 }
 
 export async function loginUser(email, password) {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new Error('Invalid credentials');
+  // Contas sem senha (login social) nao entram por aqui.
+  if (!user || !user.passwordHash) throw new AppError(ErrorCodes.AUTH_INVALID_CREDENTIALS);
   
   const isValid = await verifyPassword(password, user.passwordHash);
-  if (!isValid) throw new Error('Invalid credentials');
+  if (!isValid) throw new AppError(ErrorCodes.AUTH_INVALID_CREDENTIALS);
   
   const accessToken = generateAccessToken(user);
   const refreshToken = generateRefreshToken(user);
@@ -46,8 +48,8 @@ export async function loginUser(email, password) {
 export async function refreshSession(token) {
   const payload = verifyRefreshToken(token); // Throws if invalid
   const session = await prisma.session.findUnique({ where: { refreshToken: token }, include: { user: true } });
-  if (!session) throw new Error('Session not found');
-  if (session.expiresAt < new Date()) throw new Error('Session expired');
+  if (!session) throw new AppError(ErrorCodes.AUTH_UNAUTHORIZED);
+  if (session.expiresAt < new Date()) throw new AppError(ErrorCodes.AUTH_TOKEN_EXPIRED);
 
   // Rotate token (security best practice)
   await prisma.session.delete({ where: { id: session.id } });

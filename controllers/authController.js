@@ -1,85 +1,100 @@
 import * as authService from '../services/authService';
 import { serialize } from 'cookie';
+import { AppError, ErrorCodes, handleError, sendError, sendSuccess } from '../utils/errorHandler';
+import { loginSchema, parseInput, signupSchema } from '../validators/auth';
 
-// Helper to set cookie safely
+const REFRESH_COOKIE = 'refreshToken';
+
 function setRefreshTokenCookie(res, token) {
-  const cookieOptions = {
+  res.setHeader('Set-Cookie', serialize(REFRESH_COOKIE, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production', // Uses secure cookies if production
+    secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     maxAge: 7 * 24 * 60 * 60, // 7 days
-    path: '/'
-  };
-  res.setHeader('Set-Cookie', serialize('refreshToken', token, cookieOptions));
+    path: '/',
+  }));
 }
 
 function clearRefreshTokenCookie(res) {
-  res.setHeader('Set-Cookie', serialize('refreshToken', '', { maxAge: -1, path: '/' }));
+  res.setHeader('Set-Cookie', serialize(REFRESH_COOKIE, '', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    maxAge: 0,
+    path: '/',
+  }));
+}
+
+function invalidInput(res, issues) {
+  return sendError(res, ErrorCodes.VALIDATION_ERROR, undefined, { issues });
 }
 
 export async function signup(req, res) {
   try {
-    const { email, password, name } = req.body;
+    const { data, issues } = parseInput(signupSchema, req.body);
+    if (issues) return invalidInput(res, issues);
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const user = await authService.createUser(email, password, name);
-
+    await authService.createUser(data.email, data.password, data.name);
     // Auto-login after signup
-    const tokens = await authService.loginUser(email, password);
+    const tokens = await authService.loginUser(data.email, data.password);
     setRefreshTokenCookie(res, tokens.refreshToken);
-    return res.status(201).json({ user: tokens.user, accessToken: tokens.accessToken });
+    return sendSuccess(res, { user: tokens.user, accessToken: tokens.accessToken }, 201);
   } catch (error) {
-    return res.status(400).json({ error: error.message || 'Internal server error during signup' });
+    return handleError(res, error, 'signup');
   }
 }
 
 export async function login(req, res) {
   try {
-    const { email, password } = req.body;
-    const tokens = await authService.loginUser(email, password);
+    const { data, issues } = parseInput(loginSchema, req.body);
+    if (issues) return invalidInput(res, issues);
+
+    const tokens = await authService.loginUser(data.email, data.password);
     setRefreshTokenCookie(res, tokens.refreshToken);
-    return res.json({ user: tokens.user, accessToken: tokens.accessToken });
+    return sendSuccess(res, { user: tokens.user, accessToken: tokens.accessToken });
   } catch (error) {
-    return res.status(401).json({ error: error.message });
+    return handleError(res, error, 'login');
   }
 }
 
 export async function refresh(req, res) {
   try {
-    const token = req.cookies.refreshToken;
-    if (!token) return res.status(401).json({ error: 'No refresh token provided' });
-    
+    const token = req.cookies?.[REFRESH_COOKIE];
+    if (!token) return sendError(res, ErrorCodes.AUTH_UNAUTHORIZED);
+
     const tokens = await authService.refreshSession(token);
     setRefreshTokenCookie(res, tokens.refreshToken);
-    return res.json({ accessToken: tokens.accessToken });
+    return sendSuccess(res, { accessToken: tokens.accessToken });
   } catch (error) {
     clearRefreshTokenCookie(res);
-    return res.status(401).json({ error: 'Invalid or expired refresh token' });
+    // Token invalido, expirado ou revogado: sempre a mesma resposta ao cliente.
+    if (error instanceof AppError) return sendError(res, error.errorDef);
+    if (error?.name === 'JsonWebTokenError' || error?.name === 'TokenExpiredError') {
+      return sendError(res, ErrorCodes.AUTH_TOKEN_EXPIRED);
+    }
+    return handleError(res, error, 'refresh');
   }
 }
 
 export async function logout(req, res) {
   try {
-    const token = req.cookies.refreshToken;
+    const token = req.cookies?.[REFRESH_COOKIE];
     if (token) await authService.logoutUser(token);
     clearRefreshTokenCookie(res);
-    return res.json({ success: true });
+    return sendSuccess(res, {});
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return handleError(res, error, 'logout');
   }
 }
 
 export async function me(req, res) {
-   // User context should be attached by the authMiddleware before calling this
-   if (!req.user) return res.status(401).json({ error: 'Unauthorized' });
-   try {
-     const user = await authService.getUserById(req.user.userId);
-     if (!user) return res.status(404).json({ error: 'User not found' });
-     return res.json({ user });
-   } catch(e) {
-     return res.status(500).json({ error: e.message });
-   }
+  // User context is attached by withAuth before this handler runs.
+  if (!req.user) return sendError(res, ErrorCodes.AUTH_UNAUTHORIZED);
+  try {
+    const user = await authService.getUserById(req.user.userId);
+    if (!user) return sendError(res, ErrorCodes.NOT_FOUND, 'User not found');
+    return sendSuccess(res, { user });
+  } catch (error) {
+    return handleError(res, error, 'me');
+  }
 }
