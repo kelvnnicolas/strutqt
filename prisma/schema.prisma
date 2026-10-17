@@ -1,33 +1,161 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
-// In development, SQLite is used for rapid prototyping as requested.
-// You can switch to PostgreSQL by changing provider to "postgresql" and setting DATABASE_URL.
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  passwordHash String
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String?
   name         String?
   avatar       String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  sessions     Session[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions         Session[]
+  workspaces_owned Workspace[]
+  workspaces       UserWorkspace[]
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  userId       String
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @db.Uuid
   refreshToken String   @unique
   expiresAt    DateTime
   createdAt    DateTime @default(now())
-  
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Workspace {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  ownerId   String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  members       UserWorkspace[]
+  quizzes       Quiz[]
+  subscriptions Subscription[]
+}
+
+model UserWorkspace {
+  id          String @id @default(uuid()) @db.Uuid
+  userId      String @db.Uuid
+  workspaceId String @db.Uuid
+  role        String @default("member")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([workspaceId])
+}
+
+model Quiz {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  title       String
+  status      String    @default("draft")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deleteAt    DateTime? // Soft-delete support
+
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  questions Question[]
+  leads     Lead[]
+  events    AnalyticsEvent[]
+
+  @@index([workspaceId])
+}
+
+model Question {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String   @db.Uuid
+  type      String
+  content   String
+  position  Int?
+  createdAt DateTime @default(now())
+
+  quiz      Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers   Answer[]
+  responses Response[]
+
+  @@index([quizId])
+}
+
+model Answer {
+  id         String @id @default(uuid()) @db.Uuid
+  questionId String @db.Uuid
+  value      String
+  score      Int    @default(0)
+
+  question  Question   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  responses Response[]
+}
+
+model Lead {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String   @db.Uuid
+  name      String?
+  email     String?
+  phone     String?
+  score     Int?
+  createdAt DateTime @default(now())
+
+  quiz      Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  responses Response[]
+
+  @@index([quizId])
+}
+
+model Response {
+  id         String   @id @default(uuid()) @db.Uuid
+  leadId     String   @db.Uuid
+  questionId String?  @db.Uuid
+  answerId   String?  @db.Uuid
+  createdAt  DateTime @default(now())
+
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  question Question? @relation(fields: [questionId], references: [id])
+  answer   Answer?   @relation(fields: [answerId], references: [id])
+
+  @@index([leadId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String?  @db.Uuid
+  eventType String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  quiz Quiz? @relation(fields: [quizId], references: [id])
+
+  @@index([quizId])
+}
+
+model Plan {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String?
+  price     Decimal? @db.Decimal
+  leadLimit Int?
+  createdAt DateTime @default(now())
+
+  subscriptions Subscription[]
+}
+
+model Subscription {
+  id               String    @id @default(uuid()) @db.Uuid
+  workspaceId      String?   @db.Uuid
+  planId           String?   @db.Uuid
+  status           String?
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+  plan      Plan?      @relation(fields: [planId], references: [id])
 }
